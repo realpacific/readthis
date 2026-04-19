@@ -9,11 +9,6 @@ import sys
 import threading
 import time
 import warnings
-from kokoro import KPipeline
-import numpy as np
-import pyperclip
-import sounddevice as sd
-import trafilatura
 import pathlib
 
 # Allow PyTorch to fall back from MPS (Apple Silicon GPU) to CPU for unsupported ops.
@@ -92,6 +87,7 @@ def get_text(input_arg):
 
     # No argument → read whatever is on the clipboard.
     if input_arg is None:
+        import pyperclip
         text = pyperclip.paste()
         if not text:
             raise SystemExit("Clipboard is empty.")
@@ -99,6 +95,7 @@ def get_text(input_arg):
 
     # URL → fetch and extract the article body with trafilatura.
     if URL_PATTERN.match(input_arg):
+        import trafilatura
         downloaded = trafilatura.fetch_url(input_arg)
         if downloaded is None:
             raise SystemExit("Failed to fetch URL.")
@@ -137,6 +134,7 @@ def _play_streaming(audio_buffer):
     """
     import queue
     import readchar
+    import sounddevice as sd
 
     # On Unix, when stdin is a pipe readchar reads from it instead of the terminal.
     # Redirect stdin to /dev/tty so keypresses still work. On Windows, readchar uses
@@ -294,6 +292,9 @@ def speak(text, voice="af_heart", speed=1.0, lang="a"):
     as the first chunk is available — so the user hears audio almost immediately
     rather than waiting for the full text to be synthesised first.
     """
+    import numpy as np
+    from kokoro import KPipeline
+
     pipeline = KPipeline(lang_code=lang, repo_id="hexgrad/Kokoro-82M")
 
     # audio_buffer[0] starts empty and grows as the generation thread appends chunks.
@@ -338,6 +339,7 @@ def speak(text, voice="af_heart", speed=1.0, lang="a"):
 def _config_path():
     return pathlib.Path.home() / ".config" / "readthis" / "config.json"
 
+
 def _is_float(element: any) -> bool:
     if element is None:
         return False
@@ -346,6 +348,7 @@ def _is_float(element: any) -> bool:
         return True
     except ValueError:
         return False
+
 
 def _save_config(updates):
     path = _config_path()
@@ -359,13 +362,17 @@ def _save_config(updates):
         json.dump(current, f, indent=2)
     print(current)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Text-to-speech using Kokoro")
     subparsers = parser.add_subparsers(dest="command")
 
-    config_parser = subparsers.add_parser("config", help="Read or write config.json settings")
-    config_parser.add_argument("--voice", choices=VOICES, help="Set default voice")
-    config_parser.add_argument("--speed", type=float, help="Set default speech speed multiplier")
+    config_parser = subparsers.add_parser(
+        "config", help="Read or write config.json settings")
+    config_parser.add_argument(
+        "--voice", choices=VOICES, help="Set default voice")
+    config_parser.add_argument(
+        "--speed", type=float, help="Set default speech speed multiplier")
 
     parser.add_argument("input", nargs="?", default=None,
                         help="Text to speak, URL to an article, or omit to read from clipboard")
@@ -392,4 +399,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
