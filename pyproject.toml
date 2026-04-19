@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "readthis"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "kokoro==0.9.4",
+    "soundfile==0.13.1",
+    "sounddevice==0.5.5",
+    "trafilatura==2.0.0",
+    "pyperclip==1.11.0",
+    "readchar>=4.0",
+    "pip",
+]
+
+[project.scripts]
+readthis = "readthis.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["readthis*"]
