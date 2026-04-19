@@ -340,15 +340,6 @@ def _config_path():
     return pathlib.Path.home() / ".config" / "readthis" / "config.json"
 
 
-def _is_float(element: any) -> bool:
-    if element is None:
-        return False
-    try:
-        float(element)
-        return True
-    except ValueError:
-        return False
-
 
 def _save_config(updates):
     path = _config_path()
@@ -364,16 +355,21 @@ def _save_config(updates):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "config":
+        parser = argparse.ArgumentParser(
+            prog="readthis config", description="Read or write config.json settings")
+        parser.add_argument("--voice", choices=VOICES, help="Set default voice")
+        parser.add_argument("--speed", type=float, help="Set default speech speed multiplier")
+        args = parser.parse_args(sys.argv[2:])
+        updates = {}
+        if args.voice is not None:
+            updates["voice"] = args.voice
+        if args.speed is not None:
+            updates["speed"] = args.speed
+        _save_config(updates)
+        return
+
     parser = argparse.ArgumentParser(description="Text-to-speech using Kokoro")
-    subparsers = parser.add_subparsers(dest="command")
-
-    config_parser = subparsers.add_parser(
-        "config", help="Read or write config.json settings")
-    config_parser.add_argument(
-        "--voice", choices=VOICES, help="Set default voice")
-    config_parser.add_argument(
-        "--speed", type=float, help="Set default speech speed multiplier")
-
     parser.add_argument("input", nargs="?", default=None,
                         help="Text to speak, URL to an article, or omit to read from clipboard")
     parser.add_argument("--voice", default=_config.get("voice", "af_heart"), choices=VOICES,
@@ -383,15 +379,6 @@ def main():
     parser.add_argument("--lang", default=_config.get("lang", "a"),
                         help="Language code (default: a)")
     args = parser.parse_args()
-
-    if args.command == "config":
-        updates = {}
-        if args.voice is not None and args.voice in VOICES:
-            updates["voice"] = args.voice
-        if args.speed is not None and _is_float(args.speed):
-            updates["speed"] = float(args.speed)
-        _save_config(updates)
-        return
 
     text = get_text(args.input)
     speak(text, voice=args.voice, speed=args.speed, lang=args.lang)
