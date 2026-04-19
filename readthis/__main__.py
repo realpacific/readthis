@@ -23,6 +23,7 @@ try:
     cached_repos = {repo.repo_id for repo in scan_cache_dir().repos}
     if "hexgrad/Kokoro-82M" in cached_repos:
         os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
         os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
         os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
     else:
