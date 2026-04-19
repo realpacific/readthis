@@ -3,12 +3,21 @@
 A command-line text-to-speech tool powered by [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M). Feed it plain text, a URL, piped input, or your clipboard, it extracts the content and reads it aloud. Audio generation and playback run on separate threads, so speech starts almost immediately rather than waiting for the full text to be synthesised.
 
 
+
+
+
+
+
+<video src="https://github.com/user-attachments/assets/00284846-0166-440f-a2f5-5add32170746" controls ></video>
+
+
+
 ## Installation
 
 Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv tool install git+https://github.com/realpacific/readthis
+uv tool install --python 3.12 git+https://github.com/realpacific/readthis
 ```
 
 ## Usage
