@@ -3,12 +3,7 @@
 A command-line text-to-speech tool powered by [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M). Feed it plain text, a URL, piped input, or your clipboard, it extracts the content and reads it aloud. Audio generation and playback run on separate threads, so speech starts almost immediately rather than waiting for the full text to be synthesised.
 
 
-
-
-
-
-
-<video src="https://github.com/user-attachments/assets/00284846-0166-440f-a2f5-5add32170746" controls ></video>
+<video src="https://github.com/user-attachments/assets/9314e3b8-fb07-4792-9696-6df2a948cd7b" controls ></video>
 
 
 
@@ -27,7 +22,7 @@ uv tool install --python 3.12 git+https://github.com/realpacific/readthis
 readthis "Hello, this is a test"
 
 # URL — extracts and reads the article
-readthis https://example.com/article
+readthis https://prashantbarahi.com.np/blog/be-nice
 
 # Piped / multiline input
 echo "First line.\nSecond line." | readthis
@@ -53,6 +48,6 @@ readthis [input] [--voice VOICE] [--speed SPEED] [--lang LANG]
 
 ```bash
 readthis "Good morning" --voice af_heart --speed 1.2
-readthis https://example.com/blog-post --speed 1.5
+readthis https://prashantbarahi.com.np/blog/be-nice --speed 1.5
 readthis  # reads whatever is in your clipboard
 ```
