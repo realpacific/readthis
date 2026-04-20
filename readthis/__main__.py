@@ -14,12 +14,13 @@ import pathlib
 # Allow PyTorch to fall back from MPS (Apple Silicon GPU) to CPU for unsupported ops.
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 warnings.filterwarnings("ignore")
-logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
 # If the model is already in the Hugging Face cache, force offline mode so the
 # pipeline never attempts a network check on startup
 try:
     from huggingface_hub import scan_cache_dir
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+
     cached_repos = {repo.repo_id for repo in scan_cache_dir().repos}
     if "hexgrad/Kokoro-82M" in cached_repos:
         os.environ["HF_HUB_OFFLINE"] = "1"
