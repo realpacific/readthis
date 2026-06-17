@@ -383,6 +383,8 @@ def main():
     args = parser.parse_args()
 
     text = get_text(args.input)
+    # Replace single newlines with spaces, but preserve paragraph breaks.
+    text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
     speak(text, voice=args.voice, speed=args.speed, lang=args.lang)
 
 
