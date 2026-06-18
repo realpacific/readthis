@@ -11,6 +11,12 @@ import time
 import warnings
 import pathlib
 
+from rich.console import Console
+from rich.live import Live
+from rich.text import Text
+
+_console = Console(stderr=True)
+
 # Allow PyTorch to fall back from MPS (Apple Silicon GPU) to CPU for unsupported ops.
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 warnings.filterwarnings("ignore")
@@ -19,6 +25,7 @@ warnings.filterwarnings("ignore")
 # pipeline never attempts a network check on startup
 try:
     from huggingface_hub import scan_cache_dir
+
     logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
     cached_repos = {repo.repo_id for repo in scan_cache_dir().repos}
@@ -42,7 +49,6 @@ def _load_config():
     # Fall back to config.json in the current directory for local dev.
     with open(config_path) as f:
         return json.load(f)
-    return {}
 
 
 _config = _load_config()
@@ -58,27 +64,67 @@ SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 URL_PATTERN = re.compile(r"^https?://")
 
 VOICES = [
-    "af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", "af_kore",
-    "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
-    "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael",
-    "am_onyx", "am_puck", "am_santa",
-    "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
-    "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
-    "ef_dora", "em_alex", "em_santa",
+    "af_alloy",
+    "af_aoede",
+    "af_bella",
+    "af_heart",
+    "af_jessica",
+    "af_kore",
+    "af_nicole",
+    "af_nova",
+    "af_river",
+    "af_sarah",
+    "af_sky",
+    "am_adam",
+    "am_echo",
+    "am_eric",
+    "am_fenrir",
+    "am_liam",
+    "am_michael",
+    "am_onyx",
+    "am_puck",
+    "am_santa",
+    "bf_alice",
+    "bf_emma",
+    "bf_isabella",
+    "bf_lily",
+    "bm_daniel",
+    "bm_fable",
+    "bm_george",
+    "bm_lewis",
+    "ef_dora",
+    "em_alex",
+    "em_santa",
     "ff_siwis",
-    "hf_alpha", "hf_beta", "hm_omega", "hm_psi",
-    "if_sara", "im_nicola",
-    "jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo",
-    "pf_dora", "pm_alex", "pm_santa",
-    "zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi",
-    "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang",
+    "hf_alpha",
+    "hf_beta",
+    "hm_omega",
+    "hm_psi",
+    "if_sara",
+    "im_nicola",
+    "jf_alpha",
+    "jf_gongitsune",
+    "jf_nezumi",
+    "jf_tebukuro",
+    "jm_kumo",
+    "pf_dora",
+    "pm_alex",
+    "pm_santa",
+    "zf_xiaobei",
+    "zf_xiaoni",
+    "zf_xiaoxiao",
+    "zf_xiaoyi",
+    "zm_yunjian",
+    "zm_yunxi",
+    "zm_yunxia",
+    "zm_yunyang",
 ]
 
-generation_done = threading.Event()
-quit_requested = threading.Event()
+_generation_done = threading.Event()
+_quit_requested = threading.Event()
 
 
-def get_text(input_arg):
+def _get_text(input_arg):
     """Resolve the text to speak from stdin, clipboard, a URL, or a literal string."""
     # Piped input takes priority: `echo "hello" | python speak.py`
     if not sys.stdin.isatty():
@@ -90,6 +136,7 @@ def get_text(input_arg):
     # No argument → read whatever is on the clipboard.
     if input_arg is None:
         import pyperclip
+
         text = pyperclip.paste()
         if not text:
             raise SystemExit("Clipboard is empty.")
@@ -98,6 +145,7 @@ def get_text(input_arg):
     # URL → fetch and extract the article body with trafilatura.
     if URL_PATTERN.match(input_arg):
         import trafilatura
+
         downloaded = trafilatura.fetch_url(input_arg)
         if downloaded is None:
             raise SystemExit("Failed to fetch URL.")
@@ -143,15 +191,17 @@ def _play_streaming(audio_buffer):
     # msvcrt which reads from the console directly — no redirect needed.
     # Falls back to simple blocking playback when no terminal exists (headless).
     import platform
+
     original_stdin = sys.stdin
     tty_stream = None
     if platform.system() != "Windows" and not sys.stdin.isatty():
         try:
             import io
+
             tty_stream = io.open("/dev/tty", "r")
             sys.stdin = tty_stream
         except OSError:
-            generation_done.wait()
+            _generation_done.wait()
             sd.play(audio_buffer[0], samplerate=SAMPLE_RATE)
             sd.wait()
             return
@@ -186,7 +236,7 @@ def _play_streaming(audio_buffer):
             if current_sample >= available_samples:
                 outdata[:] = 0
                 # If generation is also finished, auto-pause at the end.
-                if generation_done.is_set():
+                if _generation_done.is_set():
                     is_paused[0] = True
                 # Otherwise output silence and wait for more audio to arrive.
                 return
@@ -196,8 +246,9 @@ def _play_streaming(audio_buffer):
             if end_sample > available_samples:
                 # Partial buffer: copy what exists, zero-pad the rest.
                 samples_to_copy = available_samples - current_sample
-                outdata[:samples_to_copy,
-                        0] = current_buf[current_sample:available_samples]
+                outdata[:samples_to_copy, 0] = current_buf[
+                    current_sample:available_samples
+                ]
                 outdata[samples_to_copy:] = 0
                 playback_pos[0] = available_samples
             else:
@@ -205,8 +256,7 @@ def _play_streaming(audio_buffer):
                 outdata[:, 0] = current_buf[current_sample:end_sample]
                 playback_pos[0] = end_sample
 
-    def render_status_line():
-        """Overwrite the current terminal line with playback position and controls."""
+    def make_status():
         with playback_lock:
             current_sample = playback_pos[0]
             currently_paused = is_paused[0]
@@ -214,24 +264,23 @@ def _play_streaming(audio_buffer):
         total_available_samples = len(audio_buffer[0])
         state_icon = "⏸" if currently_paused else "▶"
 
-        if generation_done.is_set():
+        if _generation_done.is_set():
             generating_suffix = "  ✓"
         else:
             frame = SPINNER_FRAMES[spinner_frame[0] % len(SPINNER_FRAMES)]
             spinner_frame[0] += 1
             generating_suffix = f"  {frame}"
 
-        sys.stderr.write(
-            f"\r\033[K{state_icon} "
+        return Text(
+            f"{state_icon} "
             f"{_format_time(current_sample)} / {_format_time(total_available_samples)}"
             f"  [space] pause  [←/→] ±{SEEK_SECONDS}s  [q] quit"
             f"{generating_suffix}"
         )
-        sys.stderr.flush()
 
     def key_reader():
         try:
-            while not quit_requested.is_set():
+            while not _quit_requested.is_set():
                 key_queue.put(readchar.readkey())
         except Exception:
             pass
@@ -248,40 +297,44 @@ def _play_streaming(audio_buffer):
         blocksize=1024,
     )
     stream.start()
-    render_status_line()
 
-    try:
-        while True:
-            try:
-                key = key_queue.get(timeout=0.25)
-            except queue.Empty:
-                render_status_line()
-                continue
+    with Live(
+        make_status(), console=_console, auto_refresh=False, transient=True
+    ) as live:
+        try:
+            while True:
+                try:
+                    key = key_queue.get(timeout=0.25)
+                except queue.Empty:
+                    live.update(make_status())
+                    live.refresh()
+                    continue
 
-            if key == readchar.key.SPACE:
-                with playback_lock:
-                    is_paused[0] = not is_paused[0]
-            elif key == readchar.key.LEFT:
-                with playback_lock:
-                    playback_pos[0] = max(0, playback_pos[0] - seek_samples)
-            elif key == readchar.key.RIGHT:
-                with playback_lock:
-                    samples_available = len(audio_buffer[0])
-                    playback_pos[0] = min(
-                        max(samples_available - 1, 0), playback_pos[0] + seek_samples)
-            elif key in ("q", "Q", readchar.key.CTRL_C):
-                quit_requested.set()
-                break
+                if key == readchar.key.SPACE:
+                    with playback_lock:
+                        is_paused[0] = not is_paused[0]
+                elif key == readchar.key.LEFT:
+                    with playback_lock:
+                        playback_pos[0] = max(0, playback_pos[0] - seek_samples)
+                elif key == readchar.key.RIGHT:
+                    with playback_lock:
+                        samples_available = len(audio_buffer[0])
+                        playback_pos[0] = min(
+                            max(samples_available - 1, 0),
+                            playback_pos[0] + seek_samples,
+                        )
+                elif key in ("q", "Q", readchar.key.CTRL_C):
+                    _quit_requested.set()
+                    break
 
-            render_status_line()
-    finally:
-        stream.stop()
-        stream.close()
-        if tty_stream is not None:
-            sys.stdin = original_stdin
-            tty_stream.close()
-        sys.stderr.write("\r\033[K")
-        sys.stderr.flush()
+                live.update(make_status())
+                live.refresh()
+        finally:
+            stream.stop()
+            stream.close()
+            if tty_stream is not None:
+                sys.stdin = original_stdin
+                tty_stream.close()
 
 
 def speak(text, voice="af_heart", speed=1.0, lang="a"):
@@ -307,29 +360,23 @@ def speak(text, voice="af_heart", speed=1.0, lang="a"):
 
     def generate_audio():
         """Run the TTS pipeline and append each audio chunk to the shared buffer."""
-        for _graphemes, _phonemes, audio_chunk in pipeline(text, voice=voice, speed=speed):
-            if quit_requested.is_set():
+        for _graphemes, _phonemes, audio_chunk in pipeline(
+            text, voice=voice, speed=speed
+        ):
+            if _quit_requested.is_set():
                 break
             # Extend the buffer by creating a new concatenated array and swapping
             # the reference. The old array is garbage-collected by Python once no
             # other thread holds a reference to it.
             audio_buffer[0] = np.concatenate([audio_buffer[0], audio_chunk])
-        generation_done.set()
+        _generation_done.set()
 
     generation_thread = threading.Thread(target=generate_audio, daemon=True)
     generation_thread.start()
 
-    # Animate a spinner until the first audio chunk is ready.
-    spinner_idx = 0
-    while len(audio_buffer[0]) == 0:
-        frame = SPINNER_FRAMES[spinner_idx % len(SPINNER_FRAMES)]
-        sys.stderr.write(f"\r{frame} Generating...")
-        sys.stderr.flush()
-        spinner_idx += 1
-        time.sleep(0.08)
-
-    sys.stderr.write("\r\033[K")
-    sys.stderr.flush()
+    with _console.status("Generating..."):
+        while len(audio_buffer[0]) == 0:
+            time.sleep(0.08)
 
     _play_streaming(audio_buffer)
 
@@ -342,7 +389,6 @@ def _config_path():
     return pathlib.Path.home() / ".config" / "readthis" / "config.json"
 
 
-
 def _save_config(updates):
     path = _config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -353,15 +399,17 @@ def _save_config(updates):
     current.update(updates)
     with open(path, "w") as f:
         json.dump(current, f, indent=2)
-    print(current)
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "config":
         parser = argparse.ArgumentParser(
-            prog="readthis config", description="Read or write config.json settings")
+            prog="readthis config", description="Read or write config.json settings"
+        )
         parser.add_argument("--voice", choices=VOICES, help="Set default voice")
-        parser.add_argument("--speed", type=float, help="Set default speech speed multiplier")
+        parser.add_argument(
+            "--speed", type=float, help="Set default speech speed multiplier"
+        )
         args = parser.parse_args(sys.argv[2:])
         updates = {}
         if args.voice is not None:
@@ -372,19 +420,32 @@ def main():
         return
 
     parser = argparse.ArgumentParser(description="Text-to-speech using Kokoro")
-    parser.add_argument("input", nargs="?", default=None,
-                        help="Text to speak, URL to an article, or omit to read from clipboard")
-    parser.add_argument("--voice", default=_config.get("voice", "af_heart"), choices=VOICES,
-                        help="Voice name (default: af_heart, or set in config.json)")
-    parser.add_argument("--speed", type=float, default=_config.get("speed", 1.0),
-                        help="Speech speed multiplier (default: 1.0, or set in config.json)")
-    parser.add_argument("--lang", default=_config.get("lang", "a"),
-                        help="Language code (default: a)")
+    parser.add_argument(
+        "input",
+        nargs="?",
+        default=None,
+        help="Text to speak, URL to an article, or omit to read from clipboard",
+    )
+    parser.add_argument(
+        "--voice",
+        default=_config.get("voice", "af_heart"),
+        choices=VOICES,
+        help="Voice name (default: af_heart, or set in config.json)",
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=_config.get("speed", 1.0),
+        help="Speech speed multiplier (default: 1.0, or set in config.json)",
+    )
+    parser.add_argument(
+        "--lang", default=_config.get("lang", "a"), help="Language code (default: a)"
+    )
     args = parser.parse_args()
 
-    text = get_text(args.input)
+    text = _get_text(args.input)
     # Replace single newlines with spaces, but preserve paragraph breaks.
-    text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
+    text = re.sub(r"(?<!\n)\n(?!\n)", " ", text)
     speak(text, voice=args.voice, speed=args.speed, lang=args.lang)
 
 

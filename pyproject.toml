@@ -13,6 +13,7 @@ dependencies = [
     "trafilatura==2.0.0",
     "pyperclip==1.11.0",
     "readchar>=4.0",
+    "rich>=13.0",
     "pip",
 ]
 
