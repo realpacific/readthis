@@ -401,7 +401,7 @@ def _save_config(updates):
         json.dump(current, f, indent=2)
 
 
-def main():
+def _run():
     if len(sys.argv) > 1 and sys.argv[1] == "config":
         parser = argparse.ArgumentParser(
             prog="readthis config", description="Read or write config.json settings"
@@ -447,6 +447,19 @@ def main():
     # Replace single newlines with spaces, but preserve paragraph breaks.
     text = re.sub(r"(?<!\n)\n(?!\n)", " ", text)
     speak(text, voice=args.voice, speed=args.speed, lang=args.lang)
+
+
+def main():
+    try:
+        _run()
+    except KeyboardInterrupt:
+        _quit_requested.set()
+        _console.print()
+        # Exit 130: the Unix convention of 128 + signal number, where SIGINT
+        # (Ctrl-C) is signal 2. This reports the same status the shell would
+        # have used had Python not intercepted the interrupt, so callers
+        # checking $? see "interrupted by user" rather than a generic failure.
+        raise SystemExit(130)
 
 
 if __name__ == "__main__":
